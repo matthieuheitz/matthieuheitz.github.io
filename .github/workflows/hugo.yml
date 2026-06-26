@@ -2,16 +2,13 @@ name: Deploy website to GitHub Pages
 
 env:
   WC_HUGO_VERSION: '0.163.3'
-  NODE_VERSION: '18'
+  NODE_VERSION: '24'
 
 on:
-  # Trigger the workflow every time you push to the `main` branch
   push:
     branches: ['master']
-  # Allows you to run this workflow manually from the Actions tab on GitHub
   workflow_dispatch:
 
-# Provide permission to clone the repo and deploy it to GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -22,7 +19,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Build website
   build:
     runs-on: ubuntu-latest
     steps:
@@ -34,16 +30,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup pnpm
-        if: hashFiles('package.json') != ''
-        uses: pnpm/action-setup@v4
-
+      # FIX: Force clean npm installation to prevent pnpm shell-wrapper conflicts
       - name: Install dependencies
         run: |
-          # Install Tailwind dependencies if package.json exists
           if [ -f "package.json" ]; then
-            echo "Installing Tailwind dependencies..."
-            pnpm install || npm install
+            echo "Installing dependencies cleanly with npm..."
+            npm install
+            npm install -g tailwindcss @tailwindcss/cli @tailwindcss/typography
           fi
 
       - name: Setup Hugo
@@ -51,25 +44,6 @@ jobs:
         with:
           hugo-version: ${{ env.WC_HUGO_VERSION }}
           extended: true
-
-      # Cache dependencies (Go modules, node_modules) - stable, rarely changes
-      - uses: actions/cache@v4
-        with:
-          path: |
-            /tmp/hugo_cache_runner/
-            node_modules/
-            modules/*/node_modules/
-          key: ${{ runner.os }}-hugo-deps-${{ hashFiles('**/go.mod', '**/package-lock.json', '**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-hugo-deps-
-
-      # Cache Hugo resources (processed images, CSS) - invalidates only when assets/config change
-      - uses: actions/cache@v4
-        with:
-          path: resources/
-          key: ${{ runner.os }}-hugo-resources-${{ hashFiles('assets/**/*', 'config/**/*', 'hugo.yaml', 'package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-hugo-resources-
 
       - name: Setup Pages
         id: pages
@@ -86,7 +60,6 @@ jobs:
         with:
           path: ./public
 
-  # Deploy website to GitHub Pages hosting
   deploy:
     needs: build
     environment:
